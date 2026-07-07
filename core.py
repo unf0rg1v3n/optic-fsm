@@ -1,4 +1,4 @@
-from config_parser import OpticFSMConfig, TransitionConfig
+from config import OpticFSMConfig, TransitionConfig
 from typing import Optional
 import time
 import logging
@@ -15,14 +15,8 @@ class VisionAdapter:
     def execute_transition(self, transition: "TransitionConfig") -> bool:
         pass
 
-    def human_sleep(self, delay_msec: Optional[int] = None):
-        if delay_msec:
-            time.sleep(delay_msec / 1000.0)
-
-        mean = self.settings.human_delay.mean
-        std_dev = self.settings.human_delay.std_dev
-        delay = max(0.1, random.gauss(mean, std_dev))
-        time.sleep(delay)
+    def perform_sleep(self, delay_msec: Optional[int] = None):
+        self.settings.delay.execute(base_msec=delay_msec)
 
 
 class OpticFSM_Engine:

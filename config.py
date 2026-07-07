@@ -18,19 +18,6 @@ class DelayStrategy(StrEnum):
     GAUSSIAN = 'gaussian'
 
 
-class HumanDelay(BaseModel):
-    mean: float
-    std_dev: float
-
-
-class EngineSettings(BaseModel):
-    project_name: str
-    target_window_title: str
-    confidence_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
-    global_timeout_sec: int
-    human_delay: HumanDelay
-
-
 class DelayConfig(BaseModel):
     strategy: DelayStrategy = Field(default=DelayStrategy.GAUSSIAN)
 
@@ -65,6 +52,14 @@ class DelayConfig(BaseModel):
         print(
             f"    [Delay] Ждем {total_delay:.3f} сек. (База: {base_sec}s, Шум: {noise:.3f}s, Стратегия: {self.strategy})")
         time.sleep(total_delay)
+
+
+class EngineSettings(BaseModel):
+    project_name: str
+    target_window_title: str
+    confidence_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    global_timeout_sec: int
+    delay: DelayConfig
 
 
 class TransitionConfig(BaseModel):
