@@ -1,0 +1,55 @@
+{
+  "engine_settings": {
+    "project_name": "ERP_Analytics_OpticFSM",
+    "target_window_title": "OpticFSM Business Portal",
+    "confidence_threshold": 0.85,
+    "global_timeout_sec": 60,
+    "delay": {
+      "strategy": "gaussian",
+      "mean": 0.9,
+      "std_dev": 0.2
+    }
+  },
+  "start_state": "dashboard_idle",
+  "states": {
+    "dashboard_idle": {
+      "is_terminal": false,
+      "anchors": [
+        "templates/anchor_logo_erp.png",
+        "templates/anchor_user_profile.png"
+      ],
+      "transitions": [
+        {
+          "target_template": "templates/btn_generate_report.png",
+          "action": "click",
+          "next_state": "modal_department_select",
+          "retries": 3
+        }
+      ]
+    },
+    "modal_department_select": {
+      "is_terminal": false,
+      "anchors": [
+        "templates/anchor_modal_title.png"
+      ],
+      "transitions": [
+        {
+          "target_template": "templates/target_card_finance.png",
+          "action": "click",
+          "next_state": "success_end",
+          "retries": 1
+        }
+      ]
+    },
+    "success_end": {
+      "is_terminal": true,
+      "anchors": [],
+      "transitions": []
+    },
+    "error_state": {
+      "is_terminal": true,
+      "anchors": [],
+      "transitions": []
+    }
+  }
+}

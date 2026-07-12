@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>OpticFSM Business Portal</title>
+    <style>
+        body { 
+            margin: 0; padding: 0; 
+            background-color: #f4f7f6; 
+            color: #333; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            user-select: none; 
+        }
+        
+        /* Верхняя панель (Header) */
+        .header {
+            background-color: #ffffff;
+            height: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        /* Якорь 1: Логотип системы */
+        .brand-logo {
+            font-size: 22px;
+            font-weight: 800;
+            color: #2c3e50;
+            letter-spacing: 1px;
+            padding: 5px 10px;
+            border-left: 4px solid #3498db;
+        }
+
+        /* Якорь 2: Профиль пользователя */
+        .user-profile {
+            display: flex;
+            align-items: center;
+            background: #ecf0f1;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            color: #7f8c8d;
+            border: 1px solid #bdc3c7;
+        }
+
+        /* Основной контент (Дашборд) */
+        .dashboard {
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: calc(100vh - 140px);
+        }
+
+        /* Цель 1: Кнопка действия */
+        .btn-action {
+            background-color: #2980b9;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(41, 128, 185, 0.2);
+            transition: background-color 0.2s;
+        }
+        .btn-action:hover { background-color: #3498db; }
+        .btn-action:active { transform: translateY(2px); box-shadow: none; }
+
+        /* Всплывающее окно (Модалка) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(3px);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-window {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        /* Якорь 3: Заголовок модального окна */
+        .modal-title {
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+
+        /* Цели в модалке: Карточки выбора */
+        .report-grid {
+            display: flex;
+            gap: 15px;
+        }
+
+        .report-card {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            transition: transform 0.1s;
+        }
+        .report-card:active { transform: scale(0.95); }
+        
+        .card-finance { background-color: #27ae60; border: 2px solid #219653; }
+        .card-marketing { background-color: #8e44ad; border: 2px solid #732d91; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="brand-logo">OpticFSM ERP</div>
+        <div class="user-profile">👤 Admin (ID: 7721)</div>
+    </div>
+
+    <div class="dashboard">
+        <button class="btn-action" onclick="openModal()">СГЕНЕРИРОВАТЬ ОТЧЕТ</button>
+    </div>
+
+    <div class="modal-overlay" id="reportModal">
+        <div class="modal-window">
+            <h2 class="modal-title">Выберите департамент</h2>
+            <div class="report-grid">
+                <div class="report-card card-finance" onclick="win()">ФИНАНСЫ</div>
+                <div class="report-card card-marketing" onclick="win()">МАРКЕТИНГ</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openModal() {
+            const btn = document.querySelector('.btn-action');
+            btn.innerText = "Загрузка данных...";
+            btn.style.backgroundColor = "#7f8c8d";
+            
+            // Имитация сетевой задержки (Ajax/API call)
+            setTimeout(() => {
+                document.getElementById('reportModal').style.display = 'flex';
+                btn.innerText = "СГЕНЕРИРОВАТЬ ОТЧЕТ";
+                btn.style.backgroundColor = "#2980b9";
+            }, 1200);
+        }
+
+        function win() {
+            alert("Успех! Скрипт автоматизации успешно прошел бизнес-сценарий.");
+            location.reload(); // Перезапуск
+        }
+    </script>
+</body>
+</html>
