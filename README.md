@@ -26,6 +26,7 @@ python -m pip install pydantic opencv-python mss pygetwindow pyautogui numpy
 
 ### 2. Структура проекта
 Рекомендуемая структура директорий для работы с фреймворком:
+```text
 OpticFSM/
 ├── src/                  # Исходный код ядра
 │   ├── config.py         # Pydantic модели и парсер DSL
@@ -37,6 +38,7 @@ OpticFSM/
 │       ├── config.json   # Конфигурация сценария
 │       └── templates/    # Нарезанные скриншоты (якоря и цели)
 └── README.md
+```
 
 ### 3. Быстрый старт
 Для запуска бота передайте ему путь к конфигурационному файлу (по умолчанию main.py ищет config.json в текущей директории):
