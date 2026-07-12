@@ -98,3 +98,18 @@ def load_config(file_path: str) -> OpticFSMConfig:
     with open(file_path, 'r', encoding='utf-8') as f:
         raw_data = json.load(f)
     return OpticFSMConfig(**raw_data)
+
+class SessionLimits(BaseModel):
+    """Настройки ограничений сессии (условия остановки)."""
+    max_iterations: Optional[int] = Field(default=None, gt=0)
+    iteration_trigger_state: Optional[str] = Field(default=None, description="Состояние, при входе в которое засчитывается итерация")
+    max_runtime_sec: Optional[int] = Field(default=None, gt=0)
+    stop_anchors: List[str] = Field(default_factory=list, description="Шаблоны, появление которых мгновенно останавливает бота")
+
+class EngineSettings(BaseModel):
+    project_name: str
+    target_window_title: str
+    confidence_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    global_timeout_sec: int
+    delay: DelayConfig
+    session_limits: Optional[SessionLimits] = Field(default=None)
