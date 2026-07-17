@@ -42,19 +42,34 @@ class VisionAdapter:
     
     def _init_scale_cache(self) -> None:
         """
-        Предварительно вычисляет масштаб, если известно базовое разрешение
-        монитора, на котором создавались шаблоны.
+        Предварительно вычисляет стартовый масштаб на основе разницы разрешений 
+        и разницы DPI (масштабирования Windows).
         """
         scale_cfg = self.settings.scale_settings
+        res_factor = 1.0
+        dpi_factor = 1.0
+
         res = scale_cfg.parsed_resolution
         if res:
-            base_w, base_h = res
+            base_w, _ = res
             current_w = ctypes.windll.user32.GetSystemMetrics(0)
-            
             if current_w > 0 and base_w > 0:
-                self.cached_scale = current_w / base_w
-                logger.info("⚙️ Разрешение %sx%s. Расчетный стартовый масштаб: %.2f", 
-                            base_w, base_h, self.cached_scale)
+                res_factor = current_w / base_w
+
+        if scale_cfg.base_dpi_percent:
+            try:
+                hwnd = self.window._hWnd
+                current_dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
+            except AttributeError:
+                current_dpi = 96
+                
+            current_dpi_percent = (current_dpi / 96.0) * 100
+            dpi_factor = current_dpi_percent / scale_cfg.base_dpi_percent
+
+        if res_factor != 1.0 or dpi_factor != 1.0:
+            self.cached_scale = res_factor * dpi_factor
+            logger.info("⚙️ Математический прогноз масштаба: ResFactor=%.2f, DpiFactor=%.2f. Старт с коэффициента: %.2f", 
+                        res_factor, dpi_factor, self.cached_scale)
 
     def _enable_dpi_awareness(self) -> None:
         """Включает строгий режим физических пикселей для всех мониторов (Windows 10+)."""

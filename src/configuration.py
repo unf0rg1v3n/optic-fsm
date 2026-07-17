@@ -48,13 +48,13 @@ class DelayConfig(BaseModel):
 
 class ScaleSettings(BaseModel):
     base_resolution: Optional[str] = Field(default=None)
+    base_dpi_percent: Optional[int] = Field(default=None)
     min_scale: float = Field(default=0.5)
-    max_scale: float = Field(default=1.5)
+    max_scale: float = Field(default=2.0)
     scale_step: float = Field(default=0.05)
 
     @property
     def parsed_resolution(self) -> Optional[Tuple[int, int]]:
-        """Парсит строку разрешения в кортеж (width, height)."""
         if self.base_resolution:
             parts = self.base_resolution.lower().split('x')
             if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
