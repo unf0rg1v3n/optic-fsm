@@ -6,7 +6,7 @@ import json
 import random
 import time
 from enum import StrEnum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -46,6 +46,22 @@ class DelayConfig(BaseModel):
         time.sleep(total_delay)
 
 
+class ScaleSettings(BaseModel):
+    base_resolution: Optional[str] = Field(default=None)
+    min_scale: float = Field(default=0.5)
+    max_scale: float = Field(default=1.5)
+    scale_step: float = Field(default=0.05)
+
+    @property
+    def parsed_resolution(self) -> Optional[Tuple[int, int]]:
+        """Парсит строку разрешения в кортеж (width, height)."""
+        if self.base_resolution:
+            parts = self.base_resolution.lower().split('x')
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                return int(parts[0]), int(parts[1])
+        return None
+
+
 class SessionLimits(BaseModel):
     max_iterations: Optional[int] = Field(default=None, gt=0)
     iteration_trigger_state: Optional[str] = Field(default=None)
@@ -60,6 +76,7 @@ class EngineSettings(BaseModel):
     global_timeout_sec: int
     delay: DelayConfig
     session_limits: Optional[SessionLimits] = Field(default=None)
+    scale_settings: ScaleSettings = Field(default_factory=ScaleSettings)
 
 
 class TransitionConfig(BaseModel):

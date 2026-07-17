@@ -35,18 +35,33 @@ class VisionAdapter:
         self.sct = mss.mss()
         self.roi = None
         self.window = None
-
-        self._enable_dpi_awareness()
+        self.cached_scale = 1.0
+        
         self._calibrate_window()
+        self._init_scale_cache()
+    
+    def _init_scale_cache(self) -> None:
+        """
+        Предварительно вычисляет масштаб, если известно базовое разрешение
+        монитора, на котором создавались шаблоны.
+        """
+        scale_cfg = self.settings.scale_settings
+        res = scale_cfg.parsed_resolution
+        if res:
+            base_w, base_h = res
+            current_w = ctypes.windll.user32.GetSystemMetrics(0)
+            
+            if current_w > 0 and base_w > 0:
+                self.cached_scale = current_w / base_w
+                logger.info("⚙️ Разрешение %sx%s. Расчетный стартовый масштаб: %.2f", 
+                            base_w, base_h, self.cached_scale)
 
     def _enable_dpi_awareness(self) -> None:
         """Включает строгий режим физических пикселей для всех мониторов (Windows 10+)."""
         try:
-            # Пытаемся включить современный Per-Monitor V2 (Windows 10, версия 1607+)
             ctypes.windll.shcore.SetProcessDpiAwareness(2)
         except Exception:  # pylint: disable=broad-exception-caught
             try:
-                # Откат (Fallback) до старого System DPI Awareness
                 ctypes.windll.user32.SetProcessDPIAware()
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.warning("Не удалось настроить DPI Awareness: %s", exc)
@@ -64,16 +79,13 @@ class VisionAdapter:
         if self.window.isMinimized:
             self.window.restore()
         self.window.activate()
-        time.sleep(0.5) # Даем ОС время отрисовать окно
+        time.sleep(0.5)
 
-        # Получаем дескриптор окна
         hwnd = self.window._hWnd  # pylint: disable=protected-access
 
-        # 1. Получаем размер внутренней (клиентской) области окна
         client_rect = RECT()
         ctypes.windll.user32.GetClientRect(hwnd, ctypes.byref(client_rect))
 
-        # 2. Конвертируем локальные углы в абсолютные координаты экрана монитора
         pt_topleft = POINT(client_rect.left, client_rect.top)
         pt_bottomright = POINT(client_rect.right, client_rect.bottom)
         
@@ -100,20 +112,52 @@ class VisionAdapter:
             logger.error("Шаблон не найден: %s", template_path)
             return None
 
-        res = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        t_height, t_width = template.shape
 
-        if max_val >= self.settings.confidence_threshold:
-            height, width = template.shape
-            # Находим центр совпадения
-            center_x_local = max_loc[0] + width // 2
-            center_y_local = max_loc[1] + height // 2
+        if self.cached_scale > 0:
+            new_width = int(t_width * self.cached_scale)
+            new_height = int(t_height * self.cached_scale)
             
-            # Конвертируем в абсолютные координаты
-            abs_x = self.roi["left"] + center_x_local
-            abs_y = self.roi["top"] + center_y_local
+            if new_width > 0 and new_height > 0 and new_height <= screen.shape[0] and new_width <= screen.shape[1]:
+                resized = cv2.resize(template, (new_width, new_height), interpolation=cv2.INTER_AREA)
+                res = cv2.matchTemplate(screen, resized, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                
+                if max_val >= self.settings.confidence_threshold:
+                    center_x = max_loc[0] + new_width // 2
+                    center_y = max_loc[1] + new_height // 2
+                    return (self.roi["left"] + center_x, self.roi["top"] + center_y)
+
+        best_match = None
+        scale_cfg = self.settings.scale_settings
+        
+        scales = np.arange(scale_cfg.min_scale, scale_cfg.max_scale + (scale_cfg.scale_step / 2), scale_cfg.scale_step)[::-1]
+        
+        for scale in scales:
+            new_width = int(t_width * scale)
+            new_height = int(t_height * scale)
             
-            return (abs_x, abs_y)
+            if new_width <= 0 or new_height <= 0 or new_height > screen.shape[0] or new_width > screen.shape[1]:
+                continue
+
+            resized = cv2.resize(template, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            res = cv2.matchTemplate(screen, resized, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(res)
+
+            if best_match is None or max_val > best_match["val"]:
+                best_match = {
+                    "val": max_val, "loc": max_loc, 
+                    "scale": scale, "width": new_width, "height": new_height
+                }
+
+        if best_match and best_match["val"] >= self.settings.confidence_threshold:
+            if abs(self.cached_scale - best_match["scale"]) > 0.01:
+                logger.info("📐 Масштаб интерфейса скорректирован пирамидально: %.2f", best_match["scale"])
+                self.cached_scale = best_match["scale"]
+                
+            center_x = best_match["loc"][0] + best_match["width"] // 2
+            center_y = best_match["loc"][1] + best_match["height"] // 2
+            return (self.roi["left"] + center_x, self.roi["top"] + center_y)
 
         return None
 
