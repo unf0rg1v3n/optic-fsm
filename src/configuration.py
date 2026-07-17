@@ -80,6 +80,7 @@ class TransitionConfig(BaseModel):
 
 class StateConfig(BaseModel):
     is_terminal: bool = Field(default=False)
+    is_discoverable: bool = Field(default=True)
     anchors: List[str]
     transitions: List[TransitionConfig]
 

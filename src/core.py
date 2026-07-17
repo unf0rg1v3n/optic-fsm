@@ -10,7 +10,6 @@ from vision import VisionAdapter
 
 logger = logging.getLogger(__name__)
 
-
 class OpticFSMEngine:
     """Главный класс движка конечного автомата."""
 
@@ -19,18 +18,18 @@ class OpticFSMEngine:
         self.current_state_name = config.start_state
         self.vision = VisionAdapter(config.engine_settings)
 
-        # Таймеры и счетчики сессии
         self.state_enter_time = time.time()
         self.session_start_time = time.time()
         self.iterations_completed = 0
+        
+        self.last_wait_log_time = 0.0
 
     def _change_state(self, new_state_name: str) -> None:
-        """Изменяет текущее состояние, сбрасывает таймер и считает итерации."""
         logger.info("Смена состояния: [%s] ---> [%s]", self.current_state_name, new_state_name)
         self.current_state_name = new_state_name
         self.state_enter_time = time.time()
+        self.last_wait_log_time = 0.0
 
-        # Учет завершенных итераций строго в момент перехода
         limits = self.config.engine_settings.session_limits
         if limits and new_state_name == limits.iteration_trigger_state:
             self.iterations_completed += 1
@@ -38,80 +37,96 @@ class OpticFSMEngine:
             logger.info("✅ Итерация завершена! Выполнено: %s/%s", self.iterations_completed, max_iter)
 
     def _check_session_limits(self) -> bool:
-        """Проверяет глобальные условия остановки. Возвращает True, если нужно прервать работу."""
         limits = self.config.engine_settings.session_limits
         if not limits:
             return False
 
-        # 1. Проверка по времени (max_runtime_sec)
         if limits.max_runtime_sec:
-            total_elapsed = time.time() - self.session_start_time
-            if total_elapsed > limits.max_runtime_sec:
-                logger.info("🛑 Остановка: Достигнут лимит времени сессии (%s сек).", limits.max_runtime_sec)
+            if (time.time() - self.session_start_time) > limits.max_runtime_sec:
+                logger.info("🛑 Остановка: Достигнут лимит времени сессии.")
                 return True
 
-        # 2. Проверка по количеству итераций
         if limits.max_iterations and self.iterations_completed >= limits.max_iterations:
-            logger.info("🛑 Остановка: Выполнено максимальное количество итераций (%s).", limits.max_iterations)
+            logger.info("🛑 Остановка: Выполнено максимальное количество итераций.")
             return True
 
-        # 3. Проверка на визуальные стоп-триггеры (например, капча)
         if limits.stop_anchors:
             screen = self.vision._get_screenshot_gray()
             for anchor in limits.stop_anchors:
                 if self.vision._find_template(screen, anchor):
-                    logger.critical("🛑 Аварийная остановка: Обнаружен стоп-якорь на экране (%s)!", anchor)
+                    logger.critical("🛑 Аварийная остановка: Обнаружен стоп-якорь!")
                     return True
 
         return False
 
+    def _discover_current_state(self) -> str:
+        logger.info("🔍 Запущен поиск состояния (Auto-Discovery)...")
+        for state_name, state_config in self.config.states.items():
+            if not getattr(state_config, 'is_discoverable', True):
+                continue
+            if not state_config.anchors:
+                continue
+                
+            if self.vision.verify_anchors(state_config.anchors):
+                logger.info("✅ Успех: Автомат распознал себя в состоянии '%s'", state_name)
+                return state_name
+                
+        logger.error("❌ Авто-обнаружение провалилось. Неизвестный экран.")
+        return "error_state"
+
     def run(self) -> None:
-        """Запускает бесконечный цикл обработки автомата."""
         logger.info("--- Запуск OpticFSM: %s ---", self.config.engine_settings.project_name)
 
         while True:
-            # 1. Проверка лимитов сессии
+            if self.current_state_name == "auto":
+                discovered_state = self._discover_current_state()
+                if discovered_state == "error_state":
+                    logger.critical("Невозможно продолжить работу. Скрипт остановлен.")
+                    break
+                
+                self.current_state_name = discovered_state
+                self.state_enter_time = time.time()
+                self.last_wait_log_time = 0.0
+                continue
+
             if self._check_session_limits():
                 uptime = time.time() - self.session_start_time
                 logger.info("🏁 Сессия завершена. Итераций: %d, Время работы: %.1f сек.", 
                             self.iterations_completed, uptime)
                 break
 
-            # 2. Получение текущего состояния
             current_state = self.config.states.get(self.current_state_name)
             if not current_state:
-                logger.error("Критическая ошибка: Состояние '%s' не найдено!", self.current_state_name)
                 break
 
-            # 3. Терминальное состояние
             if current_state.is_terminal:
-                logger.info("Достигнуто терминальное состояние '%s'. Завершение.", self.current_state_name)
                 break
 
-            # 4. Проверка Watchdog таймаута
             elapsed = time.time() - self.state_enter_time
             if elapsed > self.config.engine_settings.global_timeout_sec:
-                logger.warning("Таймаут в состоянии '%s' (%.1f сек).", self.current_state_name, elapsed)
-                self._change_state("error_state")
+                logger.warning("Таймаут в состоянии '%s'. Попытка самовосстановления...", self.current_state_name)
+                self.current_state_name = "auto"
                 continue
 
-            # 5. Проверка якорей (видим ли мы нужный экран?)
             if current_state.anchors:
                 if not self.vision.verify_anchors(current_state.anchors):
+                    if time.time() - self.last_wait_log_time > 5.0:
+                        logger.info("👀 [%s] Ожидание якорей (экран перекрыт или грузится)...", self.current_state_name)
+                        self.last_wait_log_time = time.time()
                     time.sleep(0.5)
                     continue
 
-            # 6. Оценка и выполнение переходов
             transition_executed = False
             for transition in current_state.transitions:
                 if self.vision.execute_transition(transition):
-                    # Если клик/ожидание прошло успешно, вызываем задержку
                     self.vision.settings.delay.execute(base_msec=transition.delay_msec)
-                    # Меняем состояние
                     self._change_state(transition.next_state)
                     transition_executed = True
                     break
 
-            # 7. Пауза холостого хода
             if not transition_executed:
+                if time.time() - self.last_wait_log_time > 5.0:
+                    targets = [t.target_template for t in current_state.transitions if t.target_template]
+                    logger.info("⏳ [%s] Якоря найдены. Ищу цели клика: %s", self.current_state_name, targets)
+                    self.last_wait_log_time = time.time()
                 time.sleep(0.1)
